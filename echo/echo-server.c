@@ -1,4 +1,4 @@
-#include "../csapp.h"
+#include "csapp.h"
 #include "echo.c"
 
 int main(int argc, char **argv) 
