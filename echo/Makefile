@@ -13,7 +13,11 @@ echo-client: echo-client.c csapp.o
 echo-server: echo-server.c csapp.o
 	$(CC) $(CFLAGS) -o echo-server echo-server.c csapp.o $(LIB)
 
+host-info: host-info.c csapp.o
+	$(CC) $(CFLAGS) -o host-info host-info.c csapp.o $(LIB)
+
 clean:
 	rm -f *.o echo *~
 	rm -f *.o echo-client *~
 	rm -f *.o echo-server *~
+	rm -f *.o host-info *~
