@@ -7,9 +7,11 @@
 - sudo apt-get install net-tools (ec2 ubuntu 환경 net-tools 설치)
 - `make all`후 `./driver.sh` 실행하면 자세한 채점(테스트) 결과가 나옵니다. 
 
+
 ## 의도(Motivation)
 
 - HTTP, Socket, TCP/IP, 프록시 서버 등 네트워크 지식에 대한 이해도 상승
+
 
 ## Main 파일 구성 요소
 
@@ -43,17 +45,17 @@
 #### tiny
     Tiny Web server from the CS:APP text
 
-port-for-user.pl
+#### port-for-user.pl
 
     Generates a random port for a particular user
     usage: ./port-for-user.pl <userID>
 
-free-port.sh
+#### free-port.sh
 
     Handy script that identifies an unused TCP port that you can use
     for your proxy or tiny. 
     usage: ./free-port.sh
 
-nop-server.py
+#### nop-server.py
 
      helper for the autograder.         
