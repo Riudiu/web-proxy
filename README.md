@@ -1,15 +1,22 @@
-####################################################################
-# CS:APP Proxy Lab
-#
-# Student Source Files
-####################################################################
 
-This directory contains the files you will need for the CS:APP Proxy
-Lab.
+# Web-Server, Proxy-Server 구현
 
-proxy.c
-csapp.h
-csapp.c
+## 테스트
+
+- (mac) 시스템 설정 > 네트워크 > 네트워크 서비스 > 세부사항 > 프록시 > 자동 프록시 인식 ON
+- sudo apt-get install net-tools (ec2 ubuntu 환경 net-tools 설치)
+- `make all`후 `./driver.sh` 실행하면 자세한 채점(테스트) 결과가 나옵니다. 
+
+## 의도(Motivation)
+
+- HTTP, Socket, TCP/IP, 프록시 서버 등 네트워크 지식에 대한 이해도 상승
+
+## Main 파일 구성 요소
+
+#### proxy.c   
+#### csapp.h    
+#### csapp.c  
+    
     These are starter files.  csapp.c and csapp.h are described in
     your textbook. 
 
@@ -19,7 +26,8 @@ csapp.c
     Please use `port-for-user.pl' or 'free-port.sh' to generate
     unique ports for your proxy or tiny server. 
 
-Makefile
+#### Makefile
+    
     This is the makefile that builds the proxy program.  Type "make"
     to build your solution, or "make clean" followed by "make" for a
     fresh build. 
@@ -28,22 +36,24 @@ Makefile
     in. You can modify it any way you like. Your instructor will use your
     Makefile to build your proxy from source.
 
+#### driver.sh
+    The autograder for Basic, Concurrency, and Cache.        
+    usage: ./driver.sh
+
+#### tiny
+    Tiny Web server from the CS:APP text
+
 port-for-user.pl
+
     Generates a random port for a particular user
     usage: ./port-for-user.pl <userID>
 
 free-port.sh
+
     Handy script that identifies an unused TCP port that you can use
     for your proxy or tiny. 
     usage: ./free-port.sh
 
-driver.sh
-    The autograder for Basic, Concurrency, and Cache.        
-    usage: ./driver.sh
-
 nop-server.py
+
      helper for the autograder.         
-
-tiny
-    Tiny Web server from the CS:APP text
-
