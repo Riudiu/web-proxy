@@ -5,7 +5,7 @@
 #include "../csapp.h"
 
 int main(void) {
-  char *buf, *p;
+  char *buf, *p, *method;
   char arg1[MAXLINE], arg2[MAXLINE], content[MAXLINE];
   int n1 = 0, n2 = 0;
 
@@ -19,6 +19,8 @@ int main(void) {
     n2 = atoi(arg2);
   }
 
+  method = getenv("REQUEST_METHOD");
+
   /* reponse body 생성 */
   sprintf(content, "QUERY_STRING=%s", buf);
   sprintf(content, "Welcome to add.com : ");
@@ -30,7 +32,8 @@ int main(void) {
   printf("Connection : close\r\n");
   printf("Content-Length : %d\r\n", (int)strlen(content));
   printf("Content-Type : text/html \r\n\r\n");
-  printf("%s", content);
+  if (strcasecmp(method,"HEAD") != 0)
+    printf("%s", content);
   fflush(stdout);
 
   exit(0);

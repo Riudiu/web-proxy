@@ -11,8 +11,8 @@
 void doit(int fd);
 void client_error(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void read_requesthdrs(rio_t *rp);
-void serve_static(int fd, char *filename, int filesize);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
+void serve_static(int fd, char *filename, int filesize, char *method);
+void serve_dynamic(int fd, char *filename, char *cgiargs, char *method);
 void get_filetype(char *filename, char *filetype);
 int parse_uri(char *uri, char *filename, char *cgiargs);
 
@@ -36,10 +36,8 @@ int main(int argc, char **argv) {
   // 클라이언트의 요청이 올 때마다 새로 연결 소켓을 만들어 doit() 호출 
   while (1) {
     clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (SA *)&clientaddr,
-                    &clientlen);  // line:netp:tiny:accept
-    Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE,
-                0);
+    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);  // line:netp:tiny:accept
+    Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
     printf("Accepted connection from (%s, %s)\n", hostname, port);
     doit(connfd);   // line:netp:tiny:doit
     Close(connfd);  // line:netp:tiny:close
@@ -47,13 +45,17 @@ int main(int argc, char **argv) {
 }
 
 /*
-  doit(serverfd) - 클라이언트의 요청 라인을 확인해 정적, 동적 컨텐츠를 구분하고 각각의 서버에 보낸다.
+  doit(serverfd) - 트랜잭션 처리 함수
+  요청라인을 읽고 분석(rio_readlineb함수 사용)
+  클라이언트의 요청 라인을 확인해 정적, 동적 컨텐츠를 구분하고 각각의 서버에 보낸다.
 */
 void doit(int fd) {
   int is_static;
   struct stat sbuf;
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   char filename[MAXLINE], cgiargs[MAXLINE];
+
+  // Rio Package: 짧은 카운트에서 발생할 수 있는 네트워크 프로그램 같은 응용에서 편리하고, 안정적이고 효율적인 I/O 제공
   rio_t rio;
 
   /* Read request line and headers */
@@ -63,7 +65,7 @@ void doit(int fd) {
   printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);
 
-  if (strcasecmp(method, "GET")) {
+  if (!(strcasecmp(method, "GET") == 0 || strcasecmp(method, "HEAD") == 0)) {
     client_error(fd, method, "501", "Not implemented", 
       "Tiny does not implement this method");
     return;
@@ -85,7 +87,7 @@ void doit(int fd) {
         "Tiny couldn't read the file");
       return;
     }
-    serve_static(fd, filename, sbuf.st_size);
+    serve_static(fd, filename, sbuf.st_size, method);
   }
   /* 동적 콘텐츠 제공 */
   else {
@@ -94,7 +96,7 @@ void doit(int fd) {
         "Tiny couldn't run the CGI program");
       return;
     }
-    serve_dynamic(fd, filename, cgiargs);
+    serve_dynamic(fd, filename, cgiargs, method);
   }
 }
 
@@ -158,8 +160,9 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
       strcpy(cgiargs, ptr + 1);
       *ptr = '\0';
     } 
-    else 
+    else {
       strcpy(cgiargs, "");
+    }
     strcpy(filename, ".");
     strcat(filename, uri);
     return 0;
@@ -169,12 +172,12 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
 /*
   serve_static - 클라이언트가 원하는 파일 디렉토리를 받아오고, 응답 라인과 헤더를 작성하고 서버에게 보낸다
 */
-void serve_static(int fd, char *filename, int filesize) {
+void serve_static(int fd, char *filename, int filesize, char *method) {
   int srcfd;
   char *srcp, filetype[MAXLINE], buf[MAXBUF];
 
   // 클라이언트에게 응답 header 전달
-  get_filetype(filename, filetype);
+  get_filetype(filename, filetype);  // 파일 타입 결정
   sprintf(buf, "HTTP/1.0 200 OK\r\n");
   sprintf(buf, "%sServer : Tiny Web Server\r\n", buf);
   sprintf(buf, "%sConnection : close\r\n", buf);
@@ -182,15 +185,23 @@ void serve_static(int fd, char *filename, int filesize) {
   sprintf(buf, "%sContent-Type : %s\r\n\r\n", buf, filetype);
   
   Rio_writen(fd, buf, strlen(buf));
-  printf("response headers:\n");
+  printf("response headers: \n");
   printf("%s", buf);
+
+  // HEAD 메소드 지원
+  if (strcasecmp(method, "HEAD") == 0) {
+    return; 
+  }
 
   // 클라이언트에게 응답 body 전달 
   srcfd = Open(filename, O_RDONLY, 0);
-  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);  // mmap() - 요청한 파일을 가상 메모리 영역으로 매핑
+  srcp = malloc(filesize);
+
   Close(srcfd);
   Rio_writen(fd, srcp, filesize);
-  Munmap(srcp, filesize);
+  // Munmap(srcp, filesize);  // 매핑된 가상메모리 주소 반환
+  free(srcp);  // 메모리 누수 방지
 }
 
 /*
@@ -211,6 +222,9 @@ void get_filetype(char *filename, char *filetype) {
   else if (strstr(filename, ".jpg")) {
     strcpy(filetype, "image/jpeg");
   }
+  else if (strstr(filename, ".mp4")) {
+    strcpy(filetype, "video/mp4");
+  }
   else 
     strcpy(filetype, "text/plain");
 }
@@ -219,7 +233,7 @@ void get_filetype(char *filename, char *filetype) {
   serve_dynamic() -  클라이언트가 원하는 동적 컨텐츠 디렉토리를 받아오고, 응답 라인과 헤더를 작성하고 서버에게 보낸다
   CGI 자식 프로세스를 fork하고 그 프로세스의 표준 출력을 클라이언트 출력과 연결한다
 */
-void serve_dynamic(int fd, char *filename, char *cgiargs) {
+void serve_dynamic(int fd, char *filename, char *cgiargs, char *method) {
   char buf[MAXLINE], *emptylist[] = { NULL };
 
   // Return first part of HTTP response
@@ -228,9 +242,12 @@ void serve_dynamic(int fd, char *filename, char *cgiargs) {
   sprintf(buf, "Server: Tiny Web Server\r\n");
   Rio_writen(fd, buf, strlen(buf));
 
-  if(Fork() == 0) {
+  if (Fork() == 0) {
     // real server would set all CGI vars here 
     setenv("QUERY_STRING", cgiargs, 1);
+    // HEAD 메소드 지원
+    setenv("REQUEST_METHOD", method, 1); 
+
     Dup2(fd, STDOUT_FILENO);   // Redirect stdout to client
     Execve(filename, emptylist, environ);  // CGI 프로그램 실행
   }
