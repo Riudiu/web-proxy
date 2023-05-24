@@ -21,42 +21,63 @@ static const char *user_agent_key= "User-Agent";
 static const char *proxy_connection_key = "Proxy-Connection";
 static const char *host_key = "Host";
 
-void doit(int connfd);
+void doit(int clientfd);
 void parse_uri(char *uri, char *hostname, char *path, int *port);
 void build_http_header(char *http_header, char *hostname,char *path, int port, rio_t *client_rio);
 int connect_endServer(char *hostname, int port, char *http_header);
+void *thread(void* vargsp);
 
 /*
   main() - 프록시 서버에 사용할 포트 번호를 인자로 받아, 
-  프록시 서버가 클라이언트와 연결할 연결 소켓 connfd 생성 후 doit() 함수 실행
+  프록시 서버가 클라이언트와 연결할 연결 소켓 clientfd 생성 후 doit() 함수 실행
 */
 int main(int argc, char **argv) {
-  int listenfd, connfd;
+  int listenfd, *clientfd;
   char hostname[MAXLINE], port[MAXLINE];
   socklen_t clientlen;
   struct sockaddr_storage clientaddr;
+  pthread_t tid; // 쓰레드 식별자
 
   if (argc != 2) {
     fprintf(stderr, "usage: %s <port>\n", argv[0]);
     exit(1);
   }
+  Signal(SIGPIPE, SIG_IGN);
   listenfd = Open_listenfd(argv[1]);
 
+  // 연결 시마다 쓰레드 생성
   while (1) {
     clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+
+    clientfd = Malloc(sizeof(int));
+    *clientfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
   
     Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
     printf("Accepted connection from (%s, %s). \n", hostname, port);
 
-    doit(connfd); 
-    Close(connfd);
+    /* sequential handle the client transaction */
+    // doit(clientfd); 
+    // Close(clientfd);
+
+    // doit()과 Close()를 쓰레드 안에서 수행
+    Pthread_create(&tid, NULL, thread, clientfd);
   }
   return 0;
 }
 
 /*
-  doit() - 클라이언트의 요청 라인을 파싱
+    thread() - 새롭게 생성된 쓰레드 안에서 클라이언트와의 통신을 수행한다
+*/
+void* thread(void *vargs){
+    int clientfd = *((int*)vargs);
+    Pthread_detach(pthread_self());  // 자기 자신을 분리
+    Free(vargs);
+    doit(clientfd);
+    Close(clientfd);
+}
+
+/*
+  doit() - 클라이언트의 요청을 수신 및 파싱
   1) 엔드 서버의 hostname, path, port를 가져오기 
   2) 엔드 서버에 보낼 요청 라인과 헤더를 만들 변수들을 생성
   3) 프록시 서버와 엔드 서버를 연결하고 엔드 서버의 응답 메세지를 클라이언트에 전송
@@ -76,9 +97,12 @@ void doit(int fd) {
   // 클라이언트가 보낸 요청 헤더에서 method, uri, version을 가져옴
   Rio_readinitb(&client_rio, fd);
   Rio_readlineb(&client_rio, buf, MAXLINE);
+  printf("Request headers to proxy:\n");
+  printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);  // read the client request line
 
-  if (strcasecmp(method, "GET")) {
+  // 지원하지 않는 method인 경우 예외 처리
+  if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD")) {
     client_error(fd, method, "501", "Not implemented", 
       "Proxy does not implement this method");
     return;
