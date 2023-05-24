@@ -253,4 +253,3 @@ void serve_dynamic(int fd, char *filename, char *cgiargs, char *method) {
   }
   wait(NULL);  // Parent waits for and reaps child
 }
-
